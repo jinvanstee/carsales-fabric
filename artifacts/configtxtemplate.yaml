@@ -320,6 +320,7 @@ Channel: &ChannelDefaults
 Profiles:
 
     OrdererGenesis:
+        <<: *ChannelDefaults
         Orderer:
             <<: *OrdererDefaults
             Organizations:
