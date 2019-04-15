@@ -324,6 +324,8 @@ Profiles:
             <<: *OrdererDefaults
             Organizations:
                 - *OrdererOrg
+            Capabilities:
+                <<: *OrdererCapabilities
         Consortiums:
             SampleConsortium:
                 Organizations:
@@ -340,6 +342,8 @@ Profiles:
                 - *ORG2
                 - *ORG3
                 - *ORG4
+            Capabilities:
+                <<: *ApplicationCapabilities
     ORG1-ORG2:
         Consortium: SampleConsortium
         Application:
@@ -347,6 +351,8 @@ Profiles:
             Organizations:
                 - *ORG1
                 - *ORG2
+            Capabilities:
+                <<: *ApplicationCapabilities
     ORG1-ORG3:
         Consortium: SampleConsortium
         Application:
@@ -354,6 +360,8 @@ Profiles:
             Organizations:
                 - *ORG1
                 - *ORG3
+            Capabilities:
+                <<: *ApplicationCapabilities
     ORG1-ORG4:
         Consortium: SampleConsortium
         Application:
@@ -361,3 +369,5 @@ Profiles:
             Organizations:
                 - *ORG1
                 - *ORG4
+            Capabilities:
+                <<: *ApplicationCapabilities

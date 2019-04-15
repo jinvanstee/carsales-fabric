@@ -130,16 +130,18 @@ function generateOrdererArtifacts() {
     sed -e "s/\DOMAIN/$DOMAIN/g" -e "s/\ORG1/$ORG1/g" -e "s/\ORG2/$ORG2/g" -e "s/\ORG3/$ORG3/g" -e "s/\ORG4/$ORG4/g" -e "s/^\s*\/\/.*$//g" artifacts/network-config-template.json > artifacts/network-config.json
 
     echo "Generating crypto material with cryptogen"
-    docker-compose --file ${f} run --rm "cli.$DOMAIN" bash -c "sleep 2 && cryptogen generate --config=cryptogen-$DOMAIN.yaml"
+    docker-compose --file ${f} run --rm "cli.$DOMAIN" bash -c "sleep 2 && rm -rf crypto-config/ordererOrganizations/$DOMAIN && cryptogen generate --config=cryptogen-$DOMAIN.yaml"
 
     echo "Generating orderer genesis block with configtxgen"
     mkdir -p artifacts/channel
-    docker-compose --file ${f} run --rm -e FABRIC_CFG_PATH=/etc/hyperledger/artifacts "cli.$DOMAIN" configtxgen -profile OrdererGenesis -outputBlock ./channel/genesis.block
+    # add -channelID so WARNING message doesn't come on
+    docker-compose --file ${f} run --rm -e FABRIC_CFG_PATH=/etc/hyperledger/artifacts "cli.$DOMAIN" configtxgen -profile OrdererGenesis -channelID orderer-system-channel -outputBlock ./channel/genesis.block
 
     for channel_name in register "$ORG1-$ORG2" "$ORG1-$ORG3" "$ORG1-$ORG4"
     do
         echo "Generating channel config transaction for $channel_name"
         docker-compose --file ${f} run --rm -e FABRIC_CFG_PATH=/etc/hyperledger/artifacts "cli.$DOMAIN" configtxgen -profile "$channel_name" -outputCreateChannelTx "./channel/$channel_name.tx" -channelID "$channel_name"
+
     done
 
     echo "Changing artifacts file ownership"
@@ -295,7 +297,9 @@ function warmUpChaincode () {
 
     info "warming up chaincode $n on $channel_name on all peers of $org with query using $f"
 
-    c="CORE_PEER_ADDRESS=peer0.$org.$DOMAIN:7051 peer chaincode query -n $n -v 1.0 -c $CHAINCODE_WARMUP_QUERY -C $channel_name"
+    #remove -v flag for fabric v1.4 - JV
+    #c="CORE_PEER_ADDRESS=peer0.$org.$DOMAIN:7051 peer chaincode query -n $n -v 1.0 -c $CHAINCODE_WARMUP_QUERY -C $channel_name"
+    c="CORE_PEER_ADDRESS=peer0.$org.$DOMAIN:7051 peer chaincode query -n $n -c $CHAINCODE_WARMUP_QUERY -C $channel_name"
     i="cli.$org.$DOMAIN"
     echo ${i}
     echo ${c}
@@ -360,7 +364,7 @@ function dockerComposeDown () {
 
   if [ -f ${compose_file} ]; then
       info "stopping docker instances from $compose_file"
-      docker-compose -f ${compose_file} down
+      docker-compose -f ${compose_file} down --volume --remove-orphans
   fi;
 
 }
