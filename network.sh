@@ -141,11 +141,40 @@ function generateOrdererArtifacts() {
     do
         echo "Generating channel config transaction for $channel_name"
         docker-compose --file ${f} run --rm -e FABRIC_CFG_PATH=/etc/hyperledger/artifacts "cli.$DOMAIN" configtxgen -profile "$channel_name" -outputCreateChannelTx "./channel/$channel_name.tx" -channelID "$channel_name"
-
+    done
+    
+    for org in "$ORG1" "$ORG2" "$ORG3" "$ORG4" 
+    do	
+        echo "Generating anchor peer update for register channel, for $org"
+        generateAnchorPeerUpdate register $org
     done
 
+    echo "Generating anchor peer update for $ORG1-$ORG2 channel, for $ORG1"
+    generateAnchorPeerUpdate $ORG1-$ORG2 $ORG1
+    echo "Generating anchor peer update for $ORG1-$ORG2 channel, for $ORG2"
+    generateAnchorPeerUpdate $ORG1-$ORG2 $ORG2
+
+    echo "Generating anchor peer update for $ORG1-$ORG3 channel, for $ORG1"
+    generateAnchorPeerUpdate $ORG1-$ORG3 $ORG1
+    echo "Generating anchor peer update for $ORG1-$ORG3 channel, for $ORG3"
+    generateAnchorPeerUpdate $ORG1-$ORG3 $ORG3
+
+    echo "Generating anchor peer update for $ORG1-$ORG4 channel, for $ORG1"
+    generateAnchorPeerUpdate $ORG1-$ORG4 $ORG1
+    echo "Generating anchor peer update for $ORG1-$ORG4 channel, for $ORG4"
+    generateAnchorPeerUpdate $ORG1-$ORG4 $ORG4
+     
     echo "Changing artifacts file ownership"
     docker-compose --file ${f} run --rm "cli.$DOMAIN" bash -c "chown -R $UID:$GID ."
+}
+
+function generateAnchorPeerUpdate() {
+     channel_name=$1
+     org=$2
+     
+     f="ledger/docker-compose-$DOMAIN.yaml"
+     docker-compose --file ${f} run --rm -e FABRIC_CFG_PATH=/etc/hyperledger/artifacts "cli.$DOMAIN" configtxgen -profile "$channel_name" -outputAnchorPeersUpdate "./channel/$channel_name-$org-Anchor.tx" -channelID "$channel_name" -asOrg $org"MSP"
+
 }
 
 function generatePeerArtifacts() {
@@ -272,6 +301,15 @@ function joinChannel() {
 
     docker-compose --file ${f} run --rm "cli.$org.$DOMAIN" bash -c "CORE_PEER_ADDRESS=peer0.$org.$DOMAIN:7051 peer channel join -b $channel_name.block"
     docker-compose --file ${f} run --rm "cli.$org.$DOMAIN" bash -c "CORE_PEER_ADDRESS=peer1.$org.$DOMAIN:7051 peer channel join -b $channel_name.block"
+}
+
+function updateAnchorsOnChannel() {
+    org=$1
+    channel_name=$2
+    f="ledger/docker-compose-${org}.yaml"
+
+    info "updating anchors for $org in channel $channel_name.."
+    docker-compose --file ${f} run --rm "cli.$org.$DOMAIN" bash -c "CORE_PEER_ADDRESS=peer0.$org.$DOMAIN:7051 peer channel update -o orderer.$DOMAIN:7050 -c $channel_name -f /etc/hyperledger/artifacts/channel/$channel_name-$org-Anchor.tx --tls --cafile /etc/hyperledger/crypto/orderer/tls/ca.crt"
 }
 
 function instantiateChaincode () {
@@ -431,9 +469,18 @@ function createJoinInstantiateWarmUp() {
   channel_name=${2}
   chaincode_name=${3}
   chaincode_init=${4}
+  org2=${5}
+  org3=${6}
+  org4=${7}
 
   createChannel ${org} ${channel_name}
   joinChannel ${org} ${channel_name}
+  updateAnchorsOnChannel ${org} ${channel_name}
+  updateAnchorsOnChannel ${org2} ${channel_name}
+  if [ "$channel_name" == "register" ]; then
+	updateAnchorsOnChannel ${org3} ${channel_name}
+ 	updateAnchorsOnChannel ${org4} ${channel_name}
+  fi
   instantiateChaincode ${org} ${channel_name} ${chaincode_name} ${chaincode_init}
   sleep 7
   warmUpChaincode ${org} ${channel_name} ${chaincode_name}
@@ -756,10 +803,10 @@ elif [ "${MODE}" == "install" -a "${ORG}" == "" ]; then
     installDmvRegister ${org}
   done
 elif [ "${MODE}" == "channel" -a "${ORG}" == "" ]; then
-  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG2}" ${CHAINCODE_DMV_DEALER} ${CHAINCODE_DMV_DEALER_INIT}
-  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG3}" ${CHAINCODE_DMV_BANKER} ${CHAINCODE_DMV_BANKER_INIT}
-  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG4}" ${CHAINCODE_DMV_INSURANCE} ${CHAINCODE_DMV_INSURANCE_INIT}
-  createJoinInstantiateWarmUp ${ORG1} register ${CHAINCODE_DMV_REGISTER} ${CHAINCODE_DMV_REGISTER_INIT}
+  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG2}" ${CHAINCODE_DMV_DEALER} ${CHAINCODE_DMV_DEALER_INIT} ${ORG2}
+  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG3}" ${CHAINCODE_DMV_BANKER} ${CHAINCODE_DMV_BANKER_INIT} ${ORG3}
+  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG4}" ${CHAINCODE_DMV_INSURANCE} ${CHAINCODE_DMV_INSURANCE_INIT} ${ORG4}
+  createJoinInstantiateWarmUp ${ORG1} register ${CHAINCODE_DMV_REGISTER} ${CHAINCODE_DMV_REGISTER_INIT} ${ORG2} ${ORG3} ${ORG4}
   
   joinWarmUp ${ORG2} "${ORG1}-${ORG2}" ${CHAINCODE_DMV_DEALER} ${CHAINCODE_DMV_DEALER_INIT}
   joinWarmUp ${ORG2} register ${CHAINCODE_DMV_REGISTER} ${CHAINCODE_DMV_REGISTER_INIT}
@@ -810,10 +857,10 @@ elif [ "${MODE}" == "channel-dmv" ]; then
   installDmvDealer ${ORG1}
   installDmvBanker ${ORG1}
   installDmvInsurance ${ORG1}
-  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG2}" ${CHAINCODE_DMV_DEALER} ${CHAINCODE_DMV_DEALER_INIT}
-  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG3}" ${CHAINCODE_DMV_BANKER} ${CHAINCODE_DMV_BANKER_INIT}
-  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG4}" ${CHAINCODE_DMV_INSURANCE} ${CHAINCODE_DMV_INSURANCE_INIT}
-  createJoinInstantiateWarmUp ${ORG1} register ${CHAINCODE_DMV_REGISTER} ${CHAINCODE_DMV_REGISTER_INIT}
+  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG2}" ${CHAINCODE_DMV_DEALER} ${CHAINCODE_DMV_DEALER_INIT} ${ORG2}
+  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG3}" ${CHAINCODE_DMV_BANKER} ${CHAINCODE_DMV_BANKER_INIT} ${ORG3}
+  createJoinInstantiateWarmUp ${ORG1} "${ORG1}-${ORG4}" ${CHAINCODE_DMV_INSURANCE} ${CHAINCODE_DMV_INSURANCE_INIT} ${ORG4}
+  createJoinInstantiateWarmUp ${ORG1} register ${CHAINCODE_DMV_REGISTER} ${CHAINCODE_DMV_REGISTER_INIT} ${ORG2} ${ORG3} ${ORG4}
 elif [ "${MODE}" == "cert-dealer" ]; then
   downloadArtifactsMember ${ORG2} "${ORG1}-${ORG2}"
 elif [ "${MODE}" == "up-dealer" ]; then
