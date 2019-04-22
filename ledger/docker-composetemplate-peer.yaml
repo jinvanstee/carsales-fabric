@@ -96,7 +96,7 @@ services:
       file: base.yaml
       service: cli-base
     volumes:
-      - ../artifacts/crypto-config/ordererOrganizations/DOMAIN/orderers/orderer.DOMAIN/tls:/etc/hyperledger/crypto/orderer/tls
+      - ../artifacts/crypto-config/ordererOrganizations/DOMAIN/orderers/orderer.DOMAIN/tls/:/etc/hyperledger/crypto/orderer/tls
 
   cli.ORG.DOMAIN:
     container_name: cli.ORG.DOMAIN
@@ -106,8 +106,8 @@ services:
       - CORE_PEER_LOCALMSPID=ORGMSP
     volumes:
 #        - ../artifacts/crypto-config/peerOrganizations/ORG.DOMAIN/users/Admin@ORG.DOMAIN:/etc/hyperledger/crypto/peer
-        - ../artifacts/crypto-config/peerOrganizations/ORG.DOMAIN/peers/peer0.ORG.DOMAIN/tls:/etc/hyperledger/crypto/peer/tls
-        - ../artifacts/crypto-config/peerOrganizations/ORG.DOMAIN/users/Admin@ORG.DOMAIN/msp:/etc/hyperledger/crypto/peer/msp
+        - ../artifacts/crypto-config/peerOrganizations/ORG.DOMAIN/peers/peer0.ORG.DOMAIN/tls/:/etc/hyperledger/crypto/peer/tls
+        - ../artifacts/crypto-config/peerOrganizations/ORG.DOMAIN/users/Admin@ORG.DOMAIN/msp/:/etc/hyperledger/crypto/peer/msp
     CLI_EXTRA_HOSTS
 
   # simple http server to disseminate certificates
